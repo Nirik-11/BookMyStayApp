@@ -1,94 +1,68 @@
-import java.util.*;
+import java.util.LinkedList;
+import java.util.Queue;
 
+// Mock Reservation class to represent guest intent
+class Reservation {
+    private String guestName;
+    private String roomType;
 
-class Room {
-    private String type;
-    private double price;
-    private String amenities;
-
-    public Room(String type, double price, String amenities) {
-        this.type = type;
-        this.price = price;
-        this.amenities = amenities;
+    public Reservation(String guestName, String roomType) {
+        this.guestName = guestName;
+        this.roomType = roomType;
     }
-
-    public String getType() { return type; }
-    public double getPrice() { return price; }
-    public String getAmenities() { return amenities; }
 
     @Override
     public String toString() {
-        return String.format("Type: %-12s | Price: $%.2f | Amenities: %s",
-                type, price, amenities);
-    }
-}
-
-
-class Inventory {
-    private Map<String, Integer> availability = new HashMap<>();
-
-    public void addRoomType(String type, int count) {
-        availability.put(type, count);
-    }
-
-
-    public Map<String, Integer> getAvailableRooms() {
-        return Collections.unmodifiableMap(availability);
-    }
-}
-
-
-class SearchService {
-    private Inventory inventory;
-    private List<Room> roomDefinitions;
-
-    public SearchService(Inventory inventory, List<Room> roomDefinitions) {
-        this.inventory = inventory;
-        this.roomDefinitions = roomDefinitions;
-    }
-
-    public void searchAvailableRooms() {
-        System.out.println("--- Current Available Rooms ---");
-        Map<String, Integer> currentStock = inventory.getAvailableRooms();
-        boolean found = false;
-
-        for (Room room : roomDefinitions) {
-            int count = currentStock.getOrDefault(room.getType(), 0);
-
-
-            if (count > 0) {
-                System.out.println(room + " | Stock: " + count);
-                found = true;
-            }
-        }
-
-        if (!found) {
-            System.out.println("No rooms currently available.");
-        }
-        System.out.println("-------------------------------\n");
+        return "Reservation[Guest: " + guestName + ", Room: " + roomType + "]";
     }
 }
 
 public class BookMyStayApp {
+    // Key Concept: Using Queue to decouple intake from processing
+    private Queue<Reservation> bookingRequestQueue;
+
+    public BookMyStayApp() {
+        // LinkedList implements the Queue interface in Java
+        this.bookingRequestQueue = new LinkedList<>();
+    }
+
+    /**
+     * Requirement: Accept booking requests and store them in arrival order.
+     * No inventory mutation occurs here.
+     */
+    public void submitBookingRequest(String guestName, String roomType) {
+        Reservation newRequest = new Reservation(guestName, roomType);
+
+        // add() or offer() ensures the element goes to the back of the line
+        bookingRequestQueue.offer(newRequest);
+
+        System.out.println("Request queued: " + guestName + " wants a " + roomType);
+    }
+
+    /**
+     * Requirement: Prepare requests for subsequent processing.
+     * This method shows the FIFO order without actually allocating yet.
+     */
+    public void displayPendingRequests() {
+        if (bookingRequestQueue.isEmpty()) {
+            System.out.println("No pending requests.");
+            return;
+        }
+        System.out.println("\n--- Current Booking Queue (First-Come-First-Served) ---");
+        for (Reservation res : bookingRequestQueue) {
+            System.out.println(res);
+        }
+    }
+
     public static void main(String[] args) {
+        BookMyStayApp bookMyStay = new BookMyStayApp();
 
-        Inventory hotelInventory = new Inventory();
-        hotelInventory.addRoomType("Single", 5);
-        hotelInventory.addRoomType("Double", 2);
-        hotelInventory.addRoomType("Suite", 0); // Out of stock
+        // Simulating simultaneous/sequential arrivals
+        bookMyStay.submitBookingRequest("Alice", "Deluxe");
+        bookMyStay.submitBookingRequest("Bob", "Suite");
+        bookMyStay.submitBookingRequest("Charlie", "Deluxe");
 
-        List<Room> roomDetails = Arrays.asList(
-                new Room("Single", 100.0, "Wifi, Desk"),
-                new Room("Double", 150.0, "Wifi, TV, Mini-fridge"),
-                new Room("Suite", 300.0, "Wifi, TV, Kitchen, Ocean View")
-        );
-
-
-        SearchService searchService = new SearchService(hotelInventory, roomDetails);
-
-        System.out.println("Action: Guest initiates room search...");
-        searchService.searchAvailableRooms();
-
-        System.out.println("System Check: State remains unchanged after search.");
+        // Verify ordering
+        bookMyStay.displayPendingRequests();
     }
 }
