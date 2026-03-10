@@ -1,43 +1,69 @@
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 
-class RoomInventory {
+class Room {
+    private String type;
+    private double price;
+    private String amenities;
 
-    private HashMap<String, Integer> inventory;
+    public Room(String type, double price, String amenities) {
+        this.type = type;
+        this.price = price;
+        this.amenities = amenities;
+    }
+
+    public String getType() { return type; }
+    public double getPrice() { return price; }
+    public String getAmenities() { return amenities; }
+
+    @Override
+    public String toString() {
+        return String.format("Type: %-12s | Price: $%.2f | Amenities: %s",
+                type, price, amenities);
+    }
+}
 
 
-    public RoomInventory() {
-        this.inventory = new HashMap<>();
+class Inventory {
+    private Map<String, Integer> availability = new HashMap<>();
+
+    public void addRoomType(String type, int count) {
+        availability.put(type, count);
     }
 
 
-    public void addRoomType(String roomType, int count) {
-        inventory.put(roomType, count);
+    public Map<String, Integer> getAvailableRooms() {
+        return Collections.unmodifiableMap(availability);
+    }
+}
+
+
+class SearchService {
+    private Inventory inventory;
+    private List<Room> roomDefinitions;
+
+    public SearchService(Inventory inventory, List<Room> roomDefinitions) {
+        this.inventory = inventory;
+        this.roomDefinitions = roomDefinitions;
     }
 
+    public void searchAvailableRooms() {
+        System.out.println("--- Current Available Rooms ---");
+        Map<String, Integer> currentStock = inventory.getAvailableRooms();
+        boolean found = false;
 
-    public int getAvailability(String roomType) {
-        return inventory.getOrDefault(roomType, 0);
-    }
+        for (Room room : roomDefinitions) {
+            int count = currentStock.getOrDefault(room.getType(), 0);
 
 
-    public boolean updateInventory(String roomType, int change) {
-        if (inventory.containsKey(roomType)) {
-            int currentCount = inventory.get(roomType);
-            if (currentCount + change >= 0) {
-                inventory.put(roomType, currentCount + change);
-                return true;
+            if (count > 0) {
+                System.out.println(room + " | Stock: " + count);
+                found = true;
             }
         }
-        return false;
-    }
 
-
-    public void displayInventory() {
-        System.out.println("\n--- Current Room Inventory ---");
-        for (Map.Entry<String, Integer> entry : inventory.entrySet()) {
-            System.out.println("Room Type: " + entry.getKey() + " | Available: " + entry.getValue());
+        if (!found) {
+            System.out.println("No rooms currently available.");
         }
         System.out.println("-------------------------------\n");
     }
@@ -46,31 +72,23 @@ class RoomInventory {
 public class BookMyStayApp {
     public static void main(String[] args) {
 
-        RoomInventory hotelInventory = new RoomInventory();
+        Inventory hotelInventory = new Inventory();
+        hotelInventory.addRoomType("Single", 5);
+        hotelInventory.addRoomType("Double", 2);
+        hotelInventory.addRoomType("Suite", 0); // Out of stock
+
+        List<Room> roomDetails = Arrays.asList(
+                new Room("Single", 100.0, "Wifi, Desk"),
+                new Room("Double", 150.0, "Wifi, TV, Mini-fridge"),
+                new Room("Suite", 300.0, "Wifi, TV, Kitchen, Ocean View")
+        );
 
 
-        hotelInventory.addRoomType("Single", 10);
-        hotelInventory.addRoomType("Double", 5);
-        hotelInventory.addRoomType("Suite", 2);
+        SearchService searchService = new SearchService(hotelInventory, roomDetails);
 
-        System.out.println("System Initialized...");
+        System.out.println("Action: Guest initiates room search...");
+        searchService.searchAvailableRooms();
 
-
-        hotelInventory.displayInventory();
-
-
-        System.out.println("Processing Booking: 1 Double Room...");
-        if (hotelInventory.updateInventory("Double", -1)) {
-            System.out.println("Booking Successful!");
-        } else {
-            System.out.println("Booking Failed: No availability.");
-        }
-
-
-        int currentSuites = hotelInventory.getAvailability("Suite");
-        System.out.println("Direct Lookup - Suites remaining: " + currentSuites);
-
-
-        hotelInventory.displayInventory();
+        System.out.println("System Check: State remains unchanged after search.");
     }
 }
