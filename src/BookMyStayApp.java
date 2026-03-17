@@ -1,93 +1,97 @@
 
 
 import java.util.*;
+import java.util.concurrent.*;
 
-class Booking {
+class BookingRequest {
     String bookingId;
     String guestName;
     String roomType;
-    String roomId;
-    boolean isCancelled;
 
-    Booking(String bookingId, String guestName, String roomType, String roomId) {
+    BookingRequest(String bookingId, String guestName, String roomType) {
         this.bookingId = bookingId;
         this.guestName = guestName;
         this.roomType = roomType;
-        this.roomId = roomId;
-        this.isCancelled = false;
     }
 }
 
-class CancellationService {
-    private Map<String, Booking> bookings;
+class ConcurrentBookingProcessor {
     private Map<String, Integer> inventory;
-    private Stack<String> rollbackStack;
+    private Queue<BookingRequest> bookingQueue;
 
-    public CancellationService(Map<String, Booking> bookings, Map<String, Integer> inventory) {
-        this.bookings = bookings;
+    public ConcurrentBookingProcessor(Map<String, Integer> inventory) {
         this.inventory = inventory;
-        this.rollbackStack = new Stack<>();
+        this.bookingQueue = new LinkedList<>();
     }
 
-    public void cancelBooking(String bookingId) {
-        if (!bookings.containsKey(bookingId)) {
-            System.out.println("Cancellation failed: Booking ID does not exist.");
-            return;
-        }
-
-        Booking booking = bookings.get(bookingId);
-
-        if (booking.isCancelled) {
-            System.out.println("Cancellation failed: Booking already cancelled.");
-            return;
-        }
-
-
-        rollbackStack.push(booking.roomId);
-
-
-        inventory.put(booking.roomType, inventory.getOrDefault(booking.roomType, 0) + 1);
-
-
-        booking.isCancelled = true;
-
-        System.out.println("Booking " + bookingId + " cancelled successfully.");
-        System.out.println("Room " + booking.roomId + " released back to inventory.");
+    public synchronized void addRequest(BookingRequest request) {
+        bookingQueue.offer(request);
+        System.out.println("Request added: " + request.bookingId + " by " + request.guestName);
     }
 
-    public void showRollbackHistory() {
-        System.out.println("Rollback Stack (recently released rooms): " + rollbackStack);
+    public synchronized void processRequest() {
+        BookingRequest request = bookingQueue.poll();
+        if (request == null) return;
+
+        int available = inventory.getOrDefault(request.roomType, 0);
+        if (available > 0) {
+            inventory.put(request.roomType, available - 1);
+            System.out.println("Booking confirmed: " + request.bookingId +
+                    " for " + request.guestName +
+                    " [Room Type: " + request.roomType + "]");
+        } else {
+            System.out.println("Booking failed (no inventory): " + request.bookingId +
+                    " for " + request.guestName);
+        }
     }
 
     public void showInventory() {
-        System.out.println("Current Inventory: " + inventory);
+        System.out.println("Final Inventory: " + inventory);
     }
 }
 
 public class BookMyStayApp {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
 
         Map<String, Integer> inventory = new HashMap<>();
         inventory.put("Deluxe", 2);
         inventory.put("Suite", 1);
 
-
-        Map<String, Booking> bookings = new HashMap<>();
-        bookings.put("B001", new Booking("B001", "Alice", "Deluxe", "D101"));
-        bookings.put("B002", new Booking("B002", "Bob", "Suite", "S201"));
-
-        CancellationService service = new CancellationService(bookings, inventory);
+        ConcurrentBookingProcessor processor = new ConcurrentBookingProcessor(inventory);
 
 
-        System.out.println("Initial Inventory: " + inventory);
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+
+        Runnable guest1 = () -> {
+            processor.addRequest(new BookingRequest("B001", "Alice", "Deluxe"));
+            processor.processRequest();
+        };
+
+        Runnable guest2 = () -> {
+            processor.addRequest(new BookingRequest("B002", "Bob", "Deluxe"));
+            processor.processRequest();
+        };
+
+        Runnable guest3 = () -> {
+            processor.addRequest(new BookingRequest("B003", "Charlie", "Suite"));
+            processor.processRequest();
+        };
+
+        Runnable guest4 = () -> {
+            processor.addRequest(new BookingRequest("B004", "Diana", "Suite"));
+            processor.processRequest();
+        };
 
 
-        service.cancelBooking("B001");
-        service.cancelBooking("B001");
-        service.cancelBooking("B003");
+        executor.execute(guest1);
+        executor.execute(guest2);
+        executor.execute(guest3);
+        executor.execute(guest4);
+
+        executor.shutdown();
+        executor.awaitTermination(5, TimeUnit.SECONDS);
 
 
-        service.showRollbackHistory();
-        service.showInventory();
+        processor.showInventory();
     }
 }
